@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pergerakan Baja SPUR</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --green: #1a7a4a;
+    --green-light: #22a05e;
+    --green-pale: #e8f5ee;
+    --green-mid: #c5e8d4;
+    --red: #c0392b;
+    --red-pale: #fdf0ef;
+    --red-mid: #f5c6c2;
+    --amber: #d97706;
+    --bg: #f4f6f3;
+    --card: #ffffff;
+    --text: #1a2e1e;
+    --text-muted: #6b7c6f;
+    --border: #dde8df;
+    --shadow: 0 2px 12px rgba(26,122,74,0.10);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; }
+
+  .header { background: var(--green); color: white; padding: 20px 20px 14px; position: sticky; top: 0; z-index: 100; box-shadow: 0 3px 16px rgba(26,122,74,0.3); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+  .header h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+  .header-sub { font-size: 11px; opacity: 0.72; margin-bottom: 6px; }
+
+  .sync-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .sync-badge.online { background: rgba(255,255,255,0.18); color: white; }
+  .sync-badge.offline { background: rgba(192,57,43,0.35); color: #ffcccc; }
+  .sync-badge.loading { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #2ecc71; flex-shrink: 0; }
+  .sync-dot.offline { background: #e74c3c; }
+  .sync-dot.loading { background: #f39c12; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .nav-tabs { display: flex; gap: 8px; padding: 12px 16px; background: white; border-bottom: 1px solid var(--border); position: sticky; top: 88px; z-index: 99; overflow-x: auto; scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: white; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .tab-btn.active { background: var(--green); color: white; border-color: var(--green); }
+
+  .content { padding: 16px; }
+
+  .stock-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stock-card { background: var(--card); border-radius: var(--radius-sm); padding: 14px 10px; text-align: center; box-shadow: var(--shadow); border: 1.5px solid var(--border); position: relative; overflow: hidden; }
+  .stock-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--green-light); border-radius: 4px 4px 0 0; }
+  .stock-card.flash { animation: cardflash 0.7s ease; }
+  @keyframes cardflash { 0%,100%{background:white} 40%{background:var(--green-pale)} }
+  .stock-card .label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .stock-card .value { font-size: 22px; font-weight: 800; color: var(--green); line-height: 1; min-height: 27px; }
+  .stock-card .unit { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+  .section-title { font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: var(--card); border-radius: var(--radius-sm); padding: 16px; box-shadow: var(--shadow); border: 1.5px solid var(--border); }
+  .stat-card .s-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .stat-card .s-value { font-size: 24px; font-weight: 800; color: var(--green); }
+  .stat-card .s-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .form-card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); border: 1.5px solid var(--border); margin-bottom: 16px; }
+  .form-type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .type-btn { padding: 14px 10px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: white; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .type-btn .type-icon { font-size: 24px; }
+  .type-btn.masuk { color: var(--green); }
+  .type-btn.masuk.active { background: var(--green-pale); border-color: var(--green); }
+  .type-btn.keluar { color: var(--red); }
+  .type-btn.keluar.active { background: var(--red-pale); border-color: var(--red); }
+
+  .field-group { margin-bottom: 14px; }
+  .field-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .field-input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; font-family: inherit; color: var(--text); background: white; appearance: none; -webkit-appearance: none; }
+  .field-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(26,122,74,0.12); }
+
+  .baja-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .baja-btn { padding: 12px 8px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; cursor: pointer; font-family: inherit; font-size: 15px; font-weight: 700; color: var(--text-muted); text-align: center; }
+  .baja-btn small { display: block; font-size: 10px; font-weight: 500; margin-top: 2px; }
+  .baja-btn.active { border-color: var(--green); background: var(--green-pale); color: var(--green); }
+
+  .qty-row { display: flex; align-items: center; gap: 10px; }
+  .qty-btn { width: 46px; height: 46px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: inherit; }
+  .qty-btn:active { background: var(--green-pale); border-color: var(--green); }
+  .qty-input { flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 20px; font-weight: 700; font-family: inherit; text-align: center; }
+  .qty-input:focus { outline: none; border-color: var(--green); }
+
+  .submit-btn { width: 100%; padding: 16px; border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  .submit-btn.masuk { background: var(--green); color: white; }
+  .submit-btn.keluar { background: var(--red); color: white; }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .rekod-list { display: flex; flex-direction: column; gap: 10px; }
+  .rekod-item { background: var(--card); border-radius: var(--radius-sm); padding: 14px 16px; box-shadow: var(--shadow); border: 1.5px solid var(--border); border-left: 5px solid var(--green); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .rekod-item.keluar { border-left-color: var(--red); }
+  .rekod-item-left { flex: 1; min-width: 0; }
+  .rekod-item-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 5px; }
+  .badge-masuk { background: var(--green-pale); color: var(--green); }
+  .badge-keluar { background: var(--red-pale); color: var(--red); }
+  .rekod-item-title { font-size: 14px; font-weight: 700; }
+  .rekod-item-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .rekod-item-actions { margin-top: 8px; }
+  .rekod-item-qty { text-align: right; flex-shrink: 0; }
+  .rekod-item-qty .num { font-size: 22px; font-weight: 800; line-height: 1; }
+  .rekod-item-qty .beg { font-size: 11px; color: var(--text-muted); }
+  .rekod-item-qty.masuk .num { color: var(--green); }
+  .rekod-item-qty.keluar .num { color: var(--red); }
+  .delete-btn { padding: 4px 10px; border: 1.5px solid var(--red-mid); border-radius: 6px; background: var(--red-pale); color: var(--red); font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-chip { flex: 0 0 auto; padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 20px; background: white; font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; font-family: inherit; }
+  .filter-chip.active { background: var(--green); color: white; border-color: var(--green); }
+
+  .export-card { background: linear-gradient(135deg, var(--green) 0%, #2ecc71 100%); border-radius: var(--radius); padding: 20px; color: white; margin-bottom: 16px; }
+  .export-card h3 { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+  .export-card p { font-size: 13px; opacity: 0.85; margin-bottom: 14px; }
+  .export-btn { padding: 12px 20px; background: white; color: var(--green); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--text); color: white; padding: 12px 22px; border-radius: 30px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 1000; max-width: 90vw; text-align: center; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-card { background: white; border-radius: var(--radius); padding: 28px 24px; width: 100%; max-width: 360px; text-align: center; }
+  .modal-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+  .modal-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .modal-btn { width: 100%; padding: 14px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 10px; }
+
+  .hidden { display: none !important; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .skeleton { background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 6px; height: 26px; width: 60%; margin: 0 auto; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>
+</head>
+<body>
+
+<!-- NAME MODAL -->
+<div class="modal-overlay" id="name-modal">
+  <div class="modal-card">
+    <div style="font-size:48px;margin-bottom:12px;">🌿</div>
+    <h2>Selamat Datang!</h2>
+    <p>Masukkan nama anda supaya rekod boleh dikenal pasti oleh semua pengguna.</p>
+    <input type="text" class="field-input" id="user-name-input" placeholder="Nama anda..." maxlength="30">
+    <button class="modal-btn" onclick="saveName()">Masuk →</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>🌿 Baja SPUR Sarawak</h1>
+      <div class="header-sub" id="current-date">Memuatkan...</div>
+    </div>
+    <div style="font-size:11px;opacity:0.75;text-align:right;" id="user-display"></div>
+  </div>
+  <div id="sync-status" class="sync-badge loading">
+    <div class="sync-dot loading"></div> Menyambung...
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Stok</button>
+  <button class="tab-btn" onclick="switchTab('entry')">✏️ Kemasukan</button>
+  <button class="tab-btn" onclick="switchTab('rekod')">📋 Rekod</button>
+  <button class="tab-btn" onclick="switchTab('export')">📤 Eksport</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="tab-dashboard" class="content">
+  <p class="section-title">Baki Semasa (Beg 25KG)</p>
+  <div class="stock-grid">
+    <div class="stock-card" id="card-rp"><div class="label">RP</div><div class="value" id="stok-rp"><div class="skeleton"></div></div><div class="unit">beg</div></div>
+    <div class="stock-card" id="card-r1"><div class="label">R1</div><div class="value" id="stok-r1"><div class="skeleton"></div></div><div class="unit">beg</div></div>
+    <div class="stock-card" id="card-r4"><div class="label">R4</div><div class="value" id="stok-r4"><div class="skeleton"></div></div><div class="unit">beg</div></div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="s-label">Masuk Bulan Ini</div><div class="s-value" id="stat-masuk">—</div><div class="s-sub">beg</div></div>
+    <div class="stat-card"><div class="s-label">Keluar Bulan Ini</div><div class="s-value" id="stat-keluar" style="color:var(--red)">—</div><div class="s-sub">beg</div></div>
+  </div>
+  <p class="section-title">Rekod Terkini</p>
+  <div id="recent-list" class="rekod-list"><div class="empty-state"><div class="icon">⏳</div><p>Memuatkan...</p></div></div>
+</div>
+
+<!-- ENTRY -->
+<div id="tab-entry" class="content hidden">
+  <div class="form-card">
+    <div class="form-type-toggle">
+      <button class="type-btn masuk active" id="btn-masuk" onclick="setType('masuk')"><span class="type-icon">⬇️</span>MASUK</button>
+      <button class="type-btn keluar" id="btn-keluar" onclick="setType('keluar')"><span class="type-icon">⬆️</span>KELUAR</button>
+    </div>
+    <div class="field-group"><label class="field-label">Tarikh</label><input type="date" class="field-input" id="field-tarikh"></div>
+    <div class="field-group">
+      <label class="field-label">Jenis Baja</label>
+      <div class="baja-selector">
+        <button class="baja-btn active" id="baja-rp" onclick="setBaja('RP')">RP<small>25KG</small></button>
+        <button class="baja-btn" id="baja-r1" onclick="setBaja('R1')">R1<small>25KG</small></button>
+        <button class="baja-btn" id="baja-r4" onclick="setBaja('R4')">R4<small>25KG</small></button>
+      </div>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Kuantiti (Beg)</label>
+      <div class="qty-row">
+        <button class="qty-btn" onclick="adjustQty(-100)">−</button>
+        <input type="number" class="qty-input field-input" id="field-qty" value="0" min="0" inputmode="numeric">
+        <button class="qty-btn" onclick="adjustQty(100)">+</button>
+      </div>
+    </div>
+    <div id="masuk-fields">
+      <div class="field-group"><label class="field-label">No. DO Kilang</label><input type="text" class="field-input" id="field-do-kilang" placeholder="cth: DRI2503861" style="text-transform:uppercase"></div>
+      <div class="field-group"><label class="field-label">No. CA</label><input type="text" class="field-input" id="field-ca" placeholder="cth: IRI2500311" style="text-transform:uppercase"></div>
+    </div>
+    <div id="keluar-fields" class="hidden">
+      <div class="field-group"><label class="field-label">No. DO SPUR</label><input type="text" class="field-input" id="field-do-spur" placeholder="cth: 00069"></div>
+      <div class="field-group"><label class="field-label">Pejabat / PT</label><input type="text" class="field-input" id="field-pejabat" placeholder="cth: SPT KAPIT" style="text-transform:uppercase"></div>
+      <div class="field-group"><label class="field-label">No. SPS 12K</label><input type="text" class="field-input" id="field-sps" placeholder="cth: SD2624010002" style="text-transform:uppercase"></div>
+    </div>
+    <div class="field-group"><label class="field-label">Catatan (pilihan)</label><input type="text" class="field-input" id="field-catatan" placeholder="Tambah catatan..."></div>
+    <button class="submit-btn masuk" id="submit-btn" onclick="submitEntry()">⬇️ Rekod Masuk</button>
+  </div>
+</div>
+
+<!-- REKOD -->
+<div id="tab-rekod" class="content hidden">
+  <div class="filter-bar">
+    <button class="filter-chip active" onclick="setFilter('semua',this)">Semua</button>
+    <button class="filter-chip" onclick="setFilter('masuk',this)">⬇️ Masuk</button>
+    <button class="filter-chip" onclick="setFilter('keluar',this)">⬆️ Keluar</button>
+    <button class="filter-chip" onclick="setFilter('RP',this)">RP</button>
+    <button class="filter-chip" onclick="setFilter('R1',this)">R1</button>
+    <button class="filter-chip" onclick="setFilter('R4',this)">R4</button>
+  </div>
+  <div id="full-list" class="rekod-list"><div class="empty-state"><div class="icon">⏳</div><p>Memuatkan...</p></div></div>
+</div>
+
+<!-- EXPORT -->
+<div id="tab-export" class="content hidden">
+  <div class="export-card">
+    <h3>📥 Export ke CSV</h3>
+    <p>Muat turun semua rekod dalam format CSV untuk Excel atau Google Sheets.</p>
+    <button class="export-btn" onclick="exportCSV()">⬇️ Muat Turun CSV</button>
+  </div>
+  <p class="section-title">Ringkasan Stok</p>
+  <div id="export-summary" class="rekod-list"></div>
+  <div class="divider"></div>
+  <p class="section-title">Baki Awal (Tetapan)</p>
+  <div class="form-card">
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Perubahan ini akan dikemas kini untuk <strong>semua pengguna</strong>.</p>
+    <div class="field-group"><label class="field-label">Baki RP (beg)</label><input type="number" class="field-input" id="init-rp" inputmode="numeric"></div>
+    <div class="field-group"><label class="field-label">Baki R1 (beg)</label><input type="number" class="field-input" id="init-r1" inputmode="numeric"></div>
+    <div class="field-group"><label class="field-label">Baki R4 (beg)</label><input type="number" class="field-input" id="init-r4" inputmode="numeric"></div>
+    <button class="submit-btn masuk" onclick="saveInitStock()">💾 Simpan Baki Awal</button>
+  </div>
+  <div class="divider"></div>
+  <div class="form-card" style="border-color:var(--red-mid);">
+    <p class="section-title" style="color:var(--red);">⚠️ Padam Semua Data</p>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Memadam SEMUA rekod dari database. Tidak boleh dibatalkan.</p>
+    <button class="submit-btn keluar" onclick="clearAllData()">🗑️ Padam Semua Rekod</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, remove, set }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBtH_ZYXdt62ZzLjHTvSAuMHC13yycY7_Y",
+  authDomain: "baja-spur.firebaseapp.com",
+  databaseURL: "https://baja-spur-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "baja-spur",
+  storageBucket: "baja-spur.firebasestorage.app",
+  messagingSenderId: "387089009357",
+  appId: "1:387089009357:web:8b6c3030d627fe6a08b784"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const recsRef  = ref(db, 'records');
+const initRef  = ref(db, 'initStock');
+
+// ── state ─────────────────────────────────────────────────────
+let allRecords  = [];
+let initStock   = { RP:4400, R1:35080, R4:21300 };
+let currentType = 'masuk';
+let currentBaja = 'RP';
+let currentFilter = 'semua';
+let userName = localStorage.getItem('baja_username') || '';
+
+// ── name modal ────────────────────────────────────────────────
+window.saveName = () => {
+  const v = document.getElementById('user-name-input').value.trim();
+  if (!v) { toast('Sila masukkan nama anda', 'error'); return; }
+  userName = v;
+  localStorage.setItem('baja_username', v);
+  document.getElementById('name-modal').style.display = 'none';
+  document.getElementById('user-display').textContent = '👤 ' + v;
+};
+if (userName) {
+  document.getElementById('name-modal').style.display = 'none';
+  document.getElementById('user-display').textContent = '👤 ' + userName;
+}
+document.getElementById('user-name-input').addEventListener('keydown', e => { if(e.key==='Enter') window.saveName(); });
+
+// ── date ──────────────────────────────────────────────────────
+const today = new Date();
+document.getElementById('current-date').textContent =
+  today.toLocaleDateString('ms-MY',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+document.getElementById('field-tarikh').value = today.toISOString().split('T')[0];
+
+// ── firebase: connection ──────────────────────────────────────
+onValue(ref(db,'.info/connected'), snap => {
+  const el = document.getElementById('sync-status');
+  if (snap.val()) {
+    el.className = 'sync-badge online';
+    el.innerHTML = '<div class="sync-dot"></div> Tersambung — Realtime';
+  } else {
+    el.className = 'sync-badge offline';
+    el.innerHTML = '<div class="sync-dot offline"></div> Tidak Tersambung';
+  }
+});
+
+// ── firebase: init stock ──────────────────────────────────────
+onValue(initRef, snap => {
+  if (snap.val()) {
+    initStock = snap.val();
+    document.getElementById('init-rp').value = initStock.RP||0;
+    document.getElementById('init-r1').value = initStock.R1||0;
+    document.getElementById('init-r4').value = initStock.R4||0;
+  }
+  refreshStock();
+});
+
+// ── firebase: records ─────────────────────────────────────────
+onValue(recsRef, snap => {
+  allRecords = [];
+  if (snap.val()) {
+    Object.entries(snap.val()).forEach(([k,v]) => allRecords.push({...v, _key:k}));
+    allRecords.sort((a,b) => b.timestamp - a.timestamp);
+  }
+  refreshStock();
+  renderRecent();
+  renderFull();
+  if (!document.getElementById('tab-export').classList.contains('hidden')) renderExportSummary();
+});
+
+// ── stock calc ────────────────────────────────────────────────
+function calcStock() {
+  const s = {RP:initStock.RP||0, R1:initStock.R1||0, R4:initStock.R4||0};
+  [...allRecords].reverse().forEach(r => {
+    s[r.baja] = (s[r.baja]||0) + (r.jenis==='masuk' ? r.qty : -r.qty);
+  });
+  return s;
+}
+function calcMonthStats() {
+  const ym = today.toISOString().slice(0,7);
+  let masuk=0, keluar=0;
+  allRecords.filter(r=>r.tarikh&&r.tarikh.startsWith(ym)).forEach(r=>{
+    r.jenis==='masuk' ? masuk+=r.qty : keluar+=r.qty;
+  });
+  return {masuk, keluar};
+}
+function refreshStock() {
+  const s = calcStock();
+  ['RP','R1','R4'].forEach(b => {
+    const el = document.getElementById('stok-'+b.toLowerCase());
+    const old = el.textContent.replace(/,/g,'');
+    const nv  = s[b].toLocaleString();
+    if (old !== nv && old !== '') {
+      const card = document.getElementById('card-'+b.toLowerCase());
+      card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+    }
+    el.textContent = nv;
+  });
+  const ms = calcMonthStats();
+  document.getElementById('stat-masuk').textContent  = ms.masuk.toLocaleString();
+  document.getElementById('stat-keluar').textContent = ms.keluar.toLocaleString();
+}
+
+// ── render helpers ────────────────────────────────────────────
+function recCard(r, withDelete) {
+  const d = new Date(r.tarikh+'T00:00:00').toLocaleDateString('ms-MY',{day:'numeric',month:'short',year:'numeric'});
+  let meta = d;
+  if (r.oleh)    meta += ` · ${r.oleh}`;
+  if (r.jenis==='masuk') {
+    if (r.doKilang) meta += ` · ${r.doKilang}`;
+    if (r.ca)       meta += ` · ${r.ca}`;
+  } else {
+    if (r.pejabat) meta += ` · ${r.pejabat}`;
+    if (r.doSpur)  meta += ` · DO:${r.doSpur}`;
+  }
+  if (r.catatan) meta += ` · ${r.catatan}`;
+  const badge = r.jenis==='masuk'
+    ? `<span class="rekod-item-badge badge-masuk">⬇️ MASUK</span>`
+    : `<span class="rekod-item-badge badge-keluar">⬆️ KELUAR</span>`;
+  const del = withDelete
+    ? `<div class="rekod-item-actions"><button class="delete-btn" onclick="deleteRec('${r._key}')">🗑 Padam</button></div>` : '';
+  return `
+    <div class="rekod-item ${r.jenis}">
+      <div class="rekod-item-left">
+        ${badge}
+        <div class="rekod-item-title">Baja ${r.baja}</div>
+        <div class="rekod-item-meta">${meta}</div>
+        ${del}
+      </div>
+      <div class="rekod-item-qty ${r.jenis}">
+        <div class="num">${r.qty.toLocaleString()}</div>
+        <div class="beg">beg</div>
+      </div>
+    </div>`;
+}
+function empty(msg) { return `<div class="empty-state"><div class="icon">📭</div><p>${msg}</p></div>`; }
+
+function renderRecent() {
+  const el = document.getElementById('recent-list');
+  const items = allRecords.slice(0,5);
+  el.innerHTML = items.length ? items.map(r=>recCard(r,false)).join('') : empty('Tiada rekod lagi');
+}
+function renderFull() {
+  const el = document.getElementById('full-list');
+  let list = allRecords;
+  if (currentFilter==='masuk')  list = list.filter(r=>r.jenis==='masuk');
+  else if (currentFilter==='keluar') list = list.filter(r=>r.jenis==='keluar');
+  else if (['RP','R1','R4'].includes(currentFilter)) list = list.filter(r=>r.baja===currentFilter);
+  el.innerHTML = list.length ? list.map(r=>recCard(r,true)).join('') : empty('Tiada rekod dijumpai');
+}
+function renderExportSummary() {
+  const s = calcStock();
+  const el = document.getElementById('export-summary');
+  el.innerHTML = `
+    <div class="rekod-item" style="border-left-color:var(--amber)">
+      <div class="rekod-item-left">
+        <div class="rekod-item-title">Jumlah Rekod</div>
+        <div class="rekod-item-meta">Masuk: ${allRecords.filter(r=>r.jenis==='masuk').length} · Keluar: ${allRecords.filter(r=>r.jenis==='keluar').length}</div>
+      </div>
+      <div class="rekod-item-qty masuk"><div class="num">${allRecords.length}</div><div class="beg">rekod</div></div>
+    </div>
+    ${['RP','R1','R4'].map(b=>`
+    <div class="rekod-item">
+      <div class="rekod-item-left">
+        <div class="rekod-item-title">Baki Semasa ${b}</div>
+        <div class="rekod-item-meta">Baki awal: ${(initStock[b]||0).toLocaleString()} beg</div>
+      </div>
+      <div class="rekod-item-qty masuk"><div class="num">${s[b].toLocaleString()}</div><div class="beg">beg</div></div>
+    </div>`).join('')}`;
+}
+
+// ── window-exposed functions ──────────────────────────────────
+const tabs = ['dashboard','entry','rekod','export'];
+window.switchTab = tab => {
+  document.querySelectorAll('.content').forEach(c=>c.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn')[tabs.indexOf(tab)].classList.add('active');
+  if (tab==='export') renderExportSummary();
+};
+
+window.setType = type => {
+  currentType = type;
+  document.getElementById('btn-masuk').classList.toggle('active', type==='masuk');
+  document.getElementById('btn-keluar').classList.toggle('active', type==='keluar');
+  document.getElementById('masuk-fields').classList.toggle('hidden', type!=='masuk');
+  document.getElementById('keluar-fields').classList.toggle('hidden', type!=='keluar');
+  const btn = document.getElementById('submit-btn');
+  btn.className = `submit-btn ${type}`;
+  btn.textContent = type==='masuk' ? '⬇️ Rekod Masuk' : '⬆️ Rekod Keluar';
+};
+
+window.setBaja = baja => {
+  currentBaja = baja;
+  ['RP','R1','R4'].forEach(b =>
+    document.getElementById('baja-'+b.toLowerCase()).classList.toggle('active', b===baja)
+  );
+};
+
+window.adjustQty = delta => {
+  const el = document.getElementById('field-qty');
+  el.value = Math.max(0, (parseInt(el.value)||0) + delta);
+};
+
+window.setFilter = (f, el) => {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderFull();
+};
+
+window.submitEntry = async () => {
+  if (!userName) { toast('Sila masukkan nama anda dahulu', 'error'); return; }
+  const tarikh = document.getElementById('field-tarikh').value;
+  const qty    = parseInt(document.getElementById('field-qty').value)||0;
+  if (!tarikh) { toast('Sila pilih tarikh', 'error'); return; }
+  if (qty<=0)  { toast('Sila masukkan kuantiti', 'error'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = '⏳ Menyimpan...';
+
+  const rec = {
+    tarikh, jenis:currentType, baja:currentBaja, qty,
+    oleh: userName,
+    catatan: document.getElementById('field-catatan').value.trim(),
+    timestamp: Date.now()
+  };
+  if (currentType==='masuk') {
+    rec.doKilang = document.getElementById('field-do-kilang').value.trim().toUpperCase();
+    rec.ca       = document.getElementById('field-ca').value.trim().toUpperCase();
+  } else {
+    rec.doSpur   = document.getElementById('field-do-spur').value.trim();
+    rec.pejabat  = document.getElementById('field-pejabat').value.trim().toUpperCase();
+    rec.sps      = document.getElementById('field-sps').value.trim().toUpperCase();
+  }
+
+  try {
+    await push(recsRef, rec);
+    ['field-qty','field-catatan','field-do-kilang','field-ca','field-do-spur','field-pejabat','field-sps']
+      .forEach(id => { const e=document.getElementById(id); if(e) e.value = id==='field-qty'?0:''; });
+    toast(`✅ ${qty.toLocaleString()} beg ${currentBaja} direkodkan`, 'success');
+    window.switchTab('dashboard');
+  } catch(e) {
+    toast('❌ Gagal simpan. Periksa sambungan internet.', 'error');
+  }
+  btn.disabled = false;
+  window.setType(currentType);
+};
+
+window.deleteRec = async key => {
+  if (!confirm('Padam rekod ini? Akan mempengaruhi semua pengguna.')) return;
+  try { await remove(ref(db,'records/'+key)); toast('Rekod dipadam','error'); }
+  catch(e) { toast('Gagal padam rekod','error'); }
+};
+
+window.saveInitStock = async () => {
+  const data = {
+    RP: parseInt(document.getElementById('init-rp').value)||0,
+    R1: parseInt(document.getElementById('init-r1').value)||0,
+    R4: parseInt(document.getElementById('init-r4').value)||0,
+  };
+  try { await set(initRef, data); toast('✅ Baki awal disimpan untuk semua pengguna','success'); }
+  catch(e) { toast('Gagal simpan baki awal','error'); }
+};
+
+window.clearAllData = async () => {
+  if (!confirm('Padam SEMUA rekod? Tidak boleh dibatalkan dan mempengaruhi semua pengguna.')) return;
+  try { await remove(recsRef); toast('Semua rekod telah dipadam','error'); }
+  catch(e) { toast('Gagal padam data','error'); }
+};
+
+window.exportCSV = () => {
+  if (!allRecords.length) { toast('Tiada rekod untuk dieksport','error'); return; }
+  const hdr = ['BIL','TARIKH','OLEH','JENIS','BAJA','KUANTITI(BEG)','NO DO KILANG','NO CA','NO DO SPUR','PEJABAT','SPS 12K','CATATAN'];
+  const rows = allRecords.map((r,i) => [
+    i+1, r.tarikh, r.oleh||'', r.jenis.toUpperCase(), r.baja, r.qty,
+    r.doKilang||'', r.ca||'', r.doSpur||'', r.pejabat||'', r.sps||'', r.catatan||''
+  ]);
+  const csv = [hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})),
+    download: `baja_spur_${today.toISOString().split('T')[0]}.csv`
+  });
+  a.click();
+  toast('✅ CSV dimuat turun','success');
+};
+
+// ── toast ─────────────────────────────────────────────────────
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(()=>el.classList.remove('show'), 2800);
+}
+window.showToast = toast;
+</script>
+</body>
+</html>
