@@ -585,13 +585,14 @@
   .badge-keluar { background:var(--red-pale); color:var(--red); }
   .rekod-item-title { font-size:14px; font-weight:700; }
   .rekod-item-meta { font-size:12px; color:var(--text-muted); margin-top:3px; }
-  .rekod-item-actions { margin-top:8px; }
+  .rekod-item-actions { margin-top:8px; display:flex; gap:8px; }
   .rekod-item-qty { text-align:right; flex-shrink:0; }
   .rekod-item-qty .num { font-size:22px; font-weight:800; line-height:1; }
   .rekod-item-qty .beg { font-size:11px; color:var(--text-muted); }
   .rekod-item-qty.masuk .num { color:var(--green); }
   .rekod-item-qty.keluar .num { color:var(--red); }
   .delete-btn { padding:4px 10px; border:1.5px solid var(--red-mid); border-radius:6px; background:var(--red-pale); color:var(--red); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .edit-btn { padding:4px 10px; border:1.5px solid var(--green-mid,var(--green)); border-radius:6px; background:var(--green-pale); color:var(--green); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
 
   .filter-bar { display:flex; gap:8px; margin-bottom:10px; overflow-x:auto; scrollbar-width:none; }
   .filter-bar + .filter-bar { margin-bottom:14px; }
@@ -927,6 +928,11 @@
   .modal-btn:hover::before { left: 100%; }
   .modal-btn:active { transform:scale(.97); box-shadow:0 10px 18px rgba(26,122,74,.18); }
   .modal-btn:disabled { opacity:.6; cursor:not-allowed; }
+  .modal-btn-row { display:flex; gap:10px; }
+  .modal-btn-row .modal-btn { margin-top:0; }
+  .modal-btn-secondary { background: rgba(0,0,0,0.06); color: var(--text-muted); box-shadow:none; }
+  .edit-card { text-align:left; max-height:85vh; overflow-y:auto; }
+  .edit-card h2 { text-align:center; }
   body.modal-open { overflow:hidden; }
   body.modal-open .native-bottom-nav,
   body.modal-open .header,
@@ -1293,6 +1299,29 @@
   </div>
 </div>
 
+<!-- EDIT REKOD MODAL -->
+<div class="modal-overlay hidden-modal" id="edit-modal">
+  <div class="modal-card edit-card">
+    <h2>Edit Rekod</h2>
+    <div class="field-group"><label class="field-label">Tarikh</label><input type="date" class="field-input" id="edit-tarikh"></div>
+    <div class="field-group"><label class="field-label">Kuantiti (Beg)</label><input type="number" class="field-input" id="edit-qty" min="0" inputmode="numeric"></div>
+    <div id="edit-masuk-fields">
+      <div class="field-group"><label class="field-label">No. DO Kilang</label><input type="text" class="field-input" id="edit-do-kilang" placeholder="cth: DRI2503861" style="text-transform:uppercase"></div>
+      <div class="field-group"><label class="field-label">No. CA</label><input type="text" class="field-input" id="edit-ca" placeholder="cth: IRI2500311" style="text-transform:uppercase"></div>
+    </div>
+    <div id="edit-keluar-fields" class="hidden">
+      <div class="field-group"><label class="field-label">No. DO SPUR</label><input type="text" class="field-input" id="edit-do-spur" placeholder="cth: 00069"></div>
+      <div class="field-group"><label class="field-label">Pejabat / PT</label><input type="text" class="field-input" id="edit-pejabat" placeholder="cth: SPT KAPIT" style="text-transform:uppercase"></div>
+      <div class="field-group"><label class="field-label">No. SPS 12K</label><input type="text" class="field-input" id="edit-sps" placeholder="cth: SD2624010002" style="text-transform:uppercase"></div>
+    </div>
+    <div class="field-group"><label class="field-label">Catatan (pilihan)</label><input type="text" class="field-input" id="edit-catatan" placeholder="Tambah catatan..."></div>
+    <div class="modal-btn-row">
+      <button class="modal-btn modal-btn-secondary" onclick="closeEditModal()">Batal</button>
+      <button class="modal-btn" id="edit-save-btn" onclick="saveEditRec()">Simpan</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="header-top">
@@ -1453,7 +1482,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, remove, set }
+import { getDatabase, ref, push, onValue, remove, set, update }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const app = initializeApp({
@@ -1475,6 +1504,7 @@ let currentType = 'masuk', currentBaja = 'RP', currentFilter = 'semua';
 let currentPeriod = 'semua', customPeriodDate = '';
 let userName = localStorage.getItem('baja_username') || '';
 let appConfig = { pin_rekod: '', pin_admin: '' };
+let editingKey = null;
 const today = new Date();
 
 // ── PWA Manifest ──────────────────────────────────────────────
@@ -1582,7 +1612,7 @@ onValue(recsRef, snap => {
   allRecords = [];
   if (snap.val()) {
     Object.entries(snap.val()).forEach(([k,v]) => allRecords.push({...v, _key:k}));
-    allRecords.sort((a,b) => b.timestamp - a.timestamp);
+    allRecords.sort((a,b) => (b.tarikh||'').localeCompare(a.tarikh||'') || (b.timestamp||0) - (a.timestamp||0));
   }
   refreshStock();
   renderRecent();
@@ -1665,7 +1695,7 @@ function recCard(r, withDel) {
     : '<span class="rekod-item-badge badge-keluar">⬆️ KELUAR</span>';
   const accent = '<span class="rekod-item-accent">' + r.baja + '</span>';
   const del = withDel
-    ? `<div class="rekod-item-actions"><button class="delete-btn" onclick="deleteRec('${r._key}')">🗑 Padam</button></div>` : '';
+    ? `<div class="rekod-item-actions"><button class="edit-btn" onclick="openEditModal('${r._key}')">✏️ Edit</button><button class="delete-btn" onclick="deleteRec('${r._key}')">🗑 Padam</button></div>` : '';
   return '<div class="rekod-item ' + r.jenis + ' ' + r.baja.toLowerCase() + '"><div class="rekod-item-left">' + badge +
     '<div class="rekod-item-title-row"><div class="rekod-item-title">Baja ' + r.baja + '</div>' + accent + '</div>' +
     '<div class="rekod-item-meta">' + meta + '</div>' + del +
@@ -2010,6 +2040,76 @@ window.deleteRec = async key => {
   try { await remove(ref(db,'records/'+key)); toast('Rekod dipadam','error'); }
   catch(e) { toast('Gagal padam rekod','error'); }
 };
+window.openEditModal = async key => {
+  if (!(await verifyPin('admin'))) return;
+  const r = allRecords.find(x => x._key === key);
+  if (!r) return;
+  editingKey = key;
+  document.getElementById('edit-tarikh').value = r.tarikh || '';
+  document.getElementById('edit-qty').value = r.qty || 0;
+  document.getElementById('edit-catatan').value = r.catatan || '';
+  const isMasuk = r.jenis === 'masuk';
+  document.getElementById('edit-masuk-fields').classList.toggle('hidden', !isMasuk);
+  document.getElementById('edit-keluar-fields').classList.toggle('hidden', isMasuk);
+  document.getElementById('edit-do-kilang').value = r.doKilang || '';
+  document.getElementById('edit-ca').value = r.ca || '';
+  document.getElementById('edit-do-spur').value = r.doSpur || '';
+  document.getElementById('edit-pejabat').value = r.pejabat || '';
+  document.getElementById('edit-sps').value = r.sps || '';
+  const modal = document.getElementById('edit-modal');
+  document.body.classList.add('modal-open');
+  modal.classList.remove('hidden-modal');
+  modal.style.display = 'flex';
+  const card = modal.querySelector('.modal-card');
+  card.style.animation = 'none'; void card.offsetWidth;
+  card.style.animation = 'modalSpringIn .55s cubic-bezier(.18,.92,.22,1.08) both';
+};
+window.closeEditModal = () => {
+  const modal = document.getElementById('edit-modal');
+  const card = modal.querySelector('.modal-card');
+  modal.style.animation = 'modalFadeOut .22s ease both';
+  card.style.animation = 'modalSpringOut .24s ease both';
+  setTimeout(() => {
+    modal.classList.add('hidden-modal');
+    modal.style.display = 'none';
+    modal.style.animation = '';
+    card.style.animation = '';
+    document.body.classList.remove('modal-open');
+    editingKey = null;
+  }, 220);
+};
+window.saveEditRec = async () => {
+  if (!editingKey) return;
+  const r = allRecords.find(x => x._key === editingKey);
+  if (!r) return;
+  const tarikh = document.getElementById('edit-tarikh').value;
+  const qty = parseInt(document.getElementById('edit-qty').value)||0;
+  if (!tarikh) { toast('Sila pilih tarikh', 'error'); return; }
+  if (qty<=0) { toast('Sila masukkan kuantiti', 'error'); return; }
+  const btn = document.getElementById('edit-save-btn');
+  btn.disabled = true; btn.textContent = '⏳ Menyimpan...';
+  const updates = {
+    tarikh, qty,
+    catatan: document.getElementById('edit-catatan').value.trim()
+  };
+  if (r.jenis === 'masuk') {
+    updates.doKilang = document.getElementById('edit-do-kilang').value.trim().toUpperCase();
+    updates.ca = document.getElementById('edit-ca').value.trim().toUpperCase();
+  } else {
+    updates.doSpur = document.getElementById('edit-do-spur').value.trim();
+    updates.pejabat = document.getElementById('edit-pejabat').value.trim().toUpperCase();
+    updates.sps = document.getElementById('edit-sps').value.trim().toUpperCase();
+  }
+  try {
+    await update(ref(db,'records/'+editingKey), updates);
+    toast('✅ Rekod dikemaskini', 'success');
+    window.closeEditModal();
+  } catch(e) {
+    toast('❌ Gagal kemaskini rekod', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Simpan';
+};
 window.saveInitStock = async () => {
   if (!(await verifyPin('admin'))) return;
   const data = {
@@ -2168,7 +2268,7 @@ function bindRipple(sel) {
     });
   });
 }
-bindRipple('.tab-btn, .native-tab-btn, .submit-btn, .qty-btn, .filter-chip, .baja-btn, .type-btn, .export-btn, .delete-btn, .modal-btn');
+bindRipple('.tab-btn, .native-tab-btn, .submit-btn, .qty-btn, .filter-chip, .baja-btn, .type-btn, .export-btn, .delete-btn, .edit-btn, .modal-btn');
 
 // ── Sliding tab indicator ─────────────────────────────────────
 function moveTabIndicator(tab) {
