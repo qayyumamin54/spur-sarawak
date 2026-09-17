@@ -593,6 +593,17 @@
   .rekod-item-qty.keluar .num { color:var(--red); }
   .delete-btn { padding:4px 10px; border:1.5px solid var(--red-mid); border-radius:6px; background:var(--red-pale); color:var(--red); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
   .edit-btn { padding:4px 10px; border:1.5px solid var(--green-mid,var(--green)); border-radius:6px; background:var(--green-pale); color:var(--green); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .detail-btn { padding:4px 10px; border:1.5px solid rgba(0,0,0,0.15); border-radius:6px; background:rgba(0,0,0,0.04); color:var(--text-muted); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
+
+  .search-bar { position:relative; margin-bottom:14px; }
+  .search-bar .search-input { padding-right:40px; }
+  .search-clear-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); width:26px; height:26px; border:none; border-radius:50%; background:rgba(0,0,0,0.08); color:var(--text-muted); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:inherit; }
+  .search-clear-btn.hidden { display:none; }
+
+  .detail-row { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; padding:10px 0; border-bottom:1px solid rgba(0,0,0,0.07); font-size:13.5px; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-row .dr-label { color:var(--text-muted); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.3px; flex-shrink:0; padding-top:1px; }
+  .detail-row .dr-value { font-weight:700; text-align:right; word-break:break-word; }
 
   .filter-bar { display:flex; gap:8px; margin-bottom:10px; overflow-x:auto; scrollbar-width:none; }
   .filter-bar + .filter-bar { margin-bottom:14px; }
@@ -931,8 +942,8 @@
   .modal-btn-row { display:flex; gap:10px; }
   .modal-btn-row .modal-btn { margin-top:0; }
   .modal-btn-secondary { background: rgba(0,0,0,0.06); color: var(--text-muted); box-shadow:none; }
-  .edit-card { text-align:left; max-height:85vh; overflow-y:auto; }
-  .edit-card h2 { text-align:center; }
+  .edit-card, .detail-card { text-align:left; max-height:85vh; overflow-y:auto; }
+  .edit-card h2, .detail-card h2 { text-align:center; }
   body.modal-open { overflow:hidden; }
   body.modal-open .native-bottom-nav,
   body.modal-open .header,
@@ -1322,6 +1333,15 @@
   </div>
 </div>
 
+<!-- DETAIL REKOD MODAL -->
+<div class="modal-overlay hidden-modal" id="detail-modal">
+  <div class="modal-card detail-card">
+    <h2>Butiran Rekod</h2>
+    <div id="detail-rows"></div>
+    <button class="modal-btn modal-btn-secondary" onclick="closeDetailModal()">Tutup</button>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="header-top">
@@ -1414,6 +1434,10 @@
 
 <!-- REKOD -->
 <div id="tab-rekod" class="content hidden">
+  <div class="search-bar">
+    <input type="text" class="field-input search-input" id="search-input" placeholder="🔍 Cari No. DO, No. CA, No. SPS, Pejabat, catatan..." oninput="setSearchQuery(this.value)">
+    <button class="search-clear-btn hidden" id="search-clear-btn" onclick="clearSearch()" aria-label="Kosongkan carian">✕</button>
+  </div>
   <div class="filter-label">
     <span>Tempoh</span>
     <span class="filter-label-count amber" id="period-count">0</span>
@@ -1502,6 +1526,7 @@ const configRef = ref(db, 'config');
 let allRecords = [], initStock = {RP:4400, R1:35080, R4:21300};
 let currentType = 'masuk', currentBaja = 'RP', currentFilter = 'semua';
 let currentPeriod = 'semua', customPeriodDate = '';
+let searchQuery = '';
 let userName = localStorage.getItem('baja_username') || '';
 let appConfig = { pin_rekod: '', pin_admin: '' };
 let editingKey = null;
@@ -1695,13 +1720,19 @@ function recCard(r, withDel) {
     : '<span class="rekod-item-badge badge-keluar">⬆️ KELUAR</span>';
   const accent = '<span class="rekod-item-accent">' + r.baja + '</span>';
   const del = withDel
-    ? `<div class="rekod-item-actions"><button class="edit-btn" onclick="openEditModal('${r._key}')">✏️ Edit</button><button class="delete-btn" onclick="deleteRec('${r._key}')">🗑 Padam</button></div>` : '';
+    ? `<div class="rekod-item-actions"><button class="detail-btn" onclick="openDetailModal('${r._key}')">ℹ️ Butiran</button><button class="edit-btn" onclick="openEditModal('${r._key}')">✏️ Edit</button><button class="delete-btn" onclick="deleteRec('${r._key}')">🗑 Padam</button></div>` : '';
   return '<div class="rekod-item ' + r.jenis + ' ' + r.baja.toLowerCase() + '"><div class="rekod-item-left">' + badge +
     '<div class="rekod-item-title-row"><div class="rekod-item-title">Baja ' + r.baja + '</div>' + accent + '</div>' +
     '<div class="rekod-item-meta">' + meta + '</div>' + del +
     '</div><div class="rekod-item-qty ' + r.jenis + '"><div class="num">' + r.qty.toLocaleString() + '</div><div class="beg">beg</div></div></div>';
 }
 function empty(msg) { return '<div class="empty-state"><div class="icon">📭</div><p>' + msg + '</p></div>'; }
+function recordMatchesSearch(r) {
+  if (!searchQuery) return true;
+  const hay = [r.doKilang, r.ca, r.doSpur, r.pejabat, r.sps, r.catatan, r.oleh, r.baja, r.tarikh]
+    .filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(searchQuery);
+}
 function renderRecent() {
   const el = document.getElementById('recent-list');
   const items = applyPeriodFilter(allRecords).slice(0,5);
@@ -1714,8 +1745,9 @@ function renderFull() {
   if (currentFilter==='masuk') list = list.filter(r=>r.jenis==='masuk');
   else if (currentFilter==='keluar') list = list.filter(r=>r.jenis==='keluar');
   else if (['RP','R1','R4'].includes(currentFilter)) list = list.filter(r=>r.baja===currentFilter);
+  if (searchQuery) list = list.filter(recordMatchesSearch);
   updateFilterCounts();
-  el.innerHTML = list.length ? list.map(r=>recCard(r,true)).join('') : empty('Tiada rekod dijumpai');
+  el.innerHTML = list.length ? list.map(r=>recCard(r,true)).join('') : empty(searchQuery ? 'Tiada rekod sepadan carian' : 'Tiada rekod dijumpai');
 }
 
 // ── Period filter ─────────────────────────────────────────────
@@ -2034,6 +2066,62 @@ window.submitEntry = async () => {
   btn.disabled = false;
   window.setType(currentType);
 };
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+window.setSearchQuery = q => {
+  searchQuery = (q||'').trim().toLowerCase();
+  document.getElementById('search-clear-btn').classList.toggle('hidden', !searchQuery);
+  renderFull();
+};
+window.clearSearch = () => {
+  document.getElementById('search-input').value = '';
+  window.setSearchQuery('');
+};
+window.openDetailModal = key => {
+  const r = allRecords.find(x => x._key === key);
+  if (!r) return;
+  const d = new Date(r.tarikh+'T00:00:00').toLocaleDateString('ms-MY',{day:'numeric',month:'long',year:'numeric'});
+  const rows = [
+    ['Jenis', r.jenis==='masuk' ? '⬇️ Masuk' : '⬆️ Keluar'],
+    ['Baja', r.baja],
+    ['Kuantiti', r.qty.toLocaleString() + ' beg'],
+    ['Tarikh', d],
+    ['Direkod oleh', r.oleh || '—']
+  ];
+  if (r.jenis === 'masuk') {
+    rows.push(['No. DO Kilang', r.doKilang || '—']);
+    rows.push(['No. CA', r.ca || '—']);
+  } else {
+    rows.push(['No. DO SPUR', r.doSpur || '—']);
+    rows.push(['Pejabat / PT', r.pejabat || '—']);
+    rows.push(['No. SPS 12K', r.sps || '—']);
+  }
+  rows.push(['Catatan', r.catatan || '—']);
+  document.getElementById('detail-rows').innerHTML = rows.map(([l,v]) =>
+    '<div class="detail-row"><span class="dr-label">' + escapeHtml(l) + '</span><span class="dr-value">' + escapeHtml(v) + '</span></div>'
+  ).join('');
+  const modal = document.getElementById('detail-modal');
+  document.body.classList.add('modal-open');
+  modal.classList.remove('hidden-modal');
+  modal.style.display = 'flex';
+  const card = modal.querySelector('.modal-card');
+  card.style.animation = 'none'; void card.offsetWidth;
+  card.style.animation = 'modalSpringIn .55s cubic-bezier(.18,.92,.22,1.08) both';
+};
+window.closeDetailModal = () => {
+  const modal = document.getElementById('detail-modal');
+  const card = modal.querySelector('.modal-card');
+  modal.style.animation = 'modalFadeOut .22s ease both';
+  card.style.animation = 'modalSpringOut .24s ease both';
+  setTimeout(() => {
+    modal.classList.add('hidden-modal');
+    modal.style.display = 'none';
+    modal.style.animation = '';
+    card.style.animation = '';
+    document.body.classList.remove('modal-open');
+  }, 220);
+};
 window.deleteRec = async key => {
   if (!(await verifyPin('admin'))) return;
   if (!confirm('Padam rekod ini? Akan mempengaruhi semua pengguna.')) return;
@@ -2268,7 +2356,7 @@ function bindRipple(sel) {
     });
   });
 }
-bindRipple('.tab-btn, .native-tab-btn, .submit-btn, .qty-btn, .filter-chip, .baja-btn, .type-btn, .export-btn, .delete-btn, .edit-btn, .modal-btn');
+bindRipple('.tab-btn, .native-tab-btn, .submit-btn, .qty-btn, .filter-chip, .baja-btn, .type-btn, .export-btn, .delete-btn, .edit-btn, .detail-btn, .modal-btn');
 
 // ── Sliding tab indicator ─────────────────────────────────────
 function moveTabIndicator(tab) {
